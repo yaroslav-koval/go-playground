@@ -12,6 +12,7 @@ import (
 
 // task is to close producer properly
 // deprecated;
+// better example in https://github.com/yaroslav-koval/hange, look for fileprovider
 
 const (
 	producersNumber    = 3 // better to keep less than 10 for readability
