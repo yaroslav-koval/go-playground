@@ -5,7 +5,6 @@ import (
 	"sync"
 )
 
-// internal/sync/mutex.go
 var m = sync.Mutex{}
 
 func lockMutex() {

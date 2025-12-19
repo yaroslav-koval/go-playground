@@ -5,13 +5,14 @@ import (
 	"sync"
 )
 
+// descriptor is at /usr/local/go/src/runtime/chan.go
+
 func main() {
 	ch()
 	mut()
 }
 
 func ch() {
-	// descriptor is at /usr/local/go/src/runtime/chan.go
 	ch := make(chan int)
 	c := ch
 
