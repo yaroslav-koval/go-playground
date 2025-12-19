@@ -1,11 +1,12 @@
 package benchmark
 
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"runtime"
 	"testing"
 	"unsafe"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // 'testing.B' directives
@@ -157,7 +158,6 @@ func BenchmarkReportAllocs(b *testing.B) {
 			value:   b.N,
 			pointer: &b.N,
 		}
-
 	}
 
 	// needed to store value in heap
