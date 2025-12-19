@@ -4,7 +4,7 @@ import (
 	"arena"
 )
 
-func AllocateGarbage(isArena bool) [][]int {
+func AllocateGarbage(isArena bool) {
 	var alloc allocator
 	defer func() {
 		alloc.Cleanup()
@@ -18,11 +18,7 @@ func AllocateGarbage(isArena bool) [][]int {
 		}
 	}
 
-	iterations := 10000
-
-	slices := make([][]int, 0, iterations)
-
-	for range iterations {
+	for range 10000 {
 		s := alloc.CreateSlice(1000)
 
 		for i := range s {
@@ -32,11 +28,7 @@ func AllocateGarbage(isArena bool) [][]int {
 		// removing 10'th item
 		// capacity is unchanged
 		s = append(s[:10], s[11:]...)
-
-		slices = append(slices, s)
 	}
-
-	return slices
 }
 
 type allocator interface {
