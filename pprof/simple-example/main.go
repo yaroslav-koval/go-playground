@@ -1,8 +1,13 @@
 package main
 
 import (
-	"net/http"
-	_ "net/http/pprof" // Import pprof
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"runtime"
+	"runtime/pprof"
+	"strings"
 	"time"
 )
 
@@ -10,9 +15,19 @@ import (
 func leakyFunction() {
 	leak := make([]string, 0)
 
-	for {
-		leak = append(leak, "memory leak")
-		time.Sleep(time.Millisecond * 100)
+	for range 100_000 {
+		b1 := strings.Builder{}
+		for range 100 {
+			b1.WriteString("little memory leak")
+		}
+
+		b2 := strings.Builder{}
+		for range 100 {
+			b1.WriteString("little memory leak")
+		}
+
+		leak = append(leak, b1.String())
+		leak = append(leak, b2.String())
 	}
 }
 
@@ -20,14 +35,9 @@ func leakyFunction() {
 func cpuIntensive() *int {
 	v := 0
 
-	go func() {
-		for {
-			for i := 0; i < 1000000; i++ {
-				//v = v + 1
-			}
-			time.Sleep(time.Millisecond * 100)
-		}
-	}()
+	for range 1 << 32 {
+		v = v + 1
+	}
 
 	return &v
 }
@@ -35,16 +45,58 @@ func cpuIntensive() *int {
 func main() {
 	//runtime.SetBlockProfileRate(1)
 
-	// Enable pprof
-	go func() {
-		http.ListenAndServe("localhost:6060", nil)
+	defer func(t time.Time) {
+		slog.Info(fmt.Sprintf("Finished in %v", time.Now().Sub(t)))
+	}(time.Now())
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+
+	proj := filepath.Join(home, "repos/go-playground/pprof/simple-example")
+	cpuPath := filepath.Join(proj, "cpu.prof")
+	memPath := filepath.Join(proj, "mem.prof")
+
+	_ = os.Remove(cpuPath)
+
+	_ = os.Remove(memPath)
+
+	f, err := os.OpenFile(cpuPath, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		panic(err)
+	}
+
+	defer func() {
+		err = f.Close()
+		if err != nil {
+			panic(err)
+		}
 	}()
 
-	// Start problematic routines
-	go leakyFunction()
+	err = pprof.StartCPUProfile(f)
+	if err != nil {
+		panic(err)
+	}
 
-	go cpuIntensive()
+	defer pprof.StopCPUProfile()
 
-	// Keep the program running
-	select {}
+	cpuIntensive()
+
+	// write heap profile
+
+	memF, err := os.OpenFile(memPath, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		panic(err)
+	}
+	defer memF.Close()
+
+	runtime.GC()
+
+	leakyFunction()
+
+	err = pprof.WriteHeapProfile(memF)
+	if err != nil {
+		panic(err)
+	}
 }

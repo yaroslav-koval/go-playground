@@ -1,4 +1,4 @@
-curl -o cpu.prof http://localhost:6061/debug/pprof/profile?seconds=30
+curl -o cpu.prof http://localhost:6060/debug/pprof/profile?seconds=10
 go tool pprof -http=:8000 cpu.prof
 
 curl -o heap.prof http://localhost:6061/debug/pprof/heap
