@@ -46,7 +46,7 @@ func main() {
 	//runtime.SetBlockProfileRate(1)
 
 	defer func(t time.Time) {
-		slog.Info(fmt.Sprintf("Finished in %v", time.Now().Sub(t)))
+		slog.Info(fmt.Sprintf("Finished in %v", time.Since(t)))
 	}(time.Now())
 
 	home, err := os.UserHomeDir()
