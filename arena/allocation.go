@@ -3,15 +3,13 @@ package main
 import (
 	"arena"
 	"context"
-	"errors"
 	"fmt"
-	"os"
 	"os/signal"
-	"path/filepath"
 	"runtime"
 	"runtime/trace"
-	"strings"
 	"syscall"
+
+	"github.com/yaroslav-koval/go-playground/pkg/tracing"
 )
 
 const (
@@ -27,39 +25,16 @@ func main() {
 }
 
 func run() (err error) {
-	dir, ok := os.LookupEnv("PWD")
-	if !ok {
-		return errors.New("env PWD not found")
-	}
-
-	// PWD contains go.mod directory, if run in IDE
-	if !strings.HasSuffix(dir, "arena") {
-		dir = filepath.Join(dir, "arena")
-	}
-
-	traceFileName := filepath.Join(dir, "trace")
-
-	fmt.Println("Trace file:", traceFileName)
-
-	var (
-		f *os.File
-	)
-
-	f, err = os.OpenFile(traceFileName, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	tr, err := tracing.StartTracing("arena")
 	if err != nil {
 		return err
 	}
 
 	defer func() {
-		err = f.Close()
+		err = tr.Close()
 	}()
 
-	err = trace.Start(f)
-	if err != nil {
-		return err
-	}
-
-	defer trace.Stop()
+	fmt.Println("Trace file:", tr.FileName)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
