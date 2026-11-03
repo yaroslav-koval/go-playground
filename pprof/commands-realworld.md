@@ -51,10 +51,17 @@ does not scale.
 ## Memory
 
 ```bash
-curl -H "Authorization: prod-secret" -o heap.prof "http://localhost:8080/metrics/pprof/heap"
+curl -H "Authorization: prod-secret" -o heap.prof "http://localhost:8080/metrics/pprof/heap?gc=1"
 curl -H "Authorization: prod-secret" -o allocs.prof "http://localhost:8080/metrics/pprof/allocs"
 go tool pprof -http=:8000 heap.prof
 ```
+
+A heap profile describes the heap as of the last completed GC. Under light load or a big
+GOGC headroom that GC can be minutes old, so two snapshots look identical or show garbage
+that is already dead. `?gc=1` runs a GC first, then samples: every snapshot is current and
+holds only live objects. Only the `heap` path honors it (`allocs` ignores it; `net/http/pprof`
+checks `name == "heap"`). Cost: one forced GC cycle, fine for a hand-taken snapshot, not for
+a scraper hitting it every few seconds.
 
 Sample types (SAMPLE menu, or `-sample_index=`):
 
@@ -69,7 +76,8 @@ go tool pprof -sample_index=inuse_space -top heap.prof | head -30
 go tool pprof -sample_index=alloc_space -top allocs.prof | head -30
 ```
 
-Growth over time: take two heap snapshots minutes apart and diff them.
+Growth over time: take two `?gc=1` snapshots minutes apart, under the same steady load, and
+diff them.
 
 ```bash
 go tool pprof -http=:8000 -base heap-t0.prof heap-t5.prof
@@ -82,9 +90,30 @@ last GC, not live RSS; RSS also holds freed-but-not-returned spans and non-heap 
 ## Goroutines
 
 ```bash
-curl -H "Authorization: prod-secret" -o gr.prof "http://localhost:8080/metrics/pprof/goroutine"
-go tool pprof -http=:8000 gr.prof
+curl -H "Authorization: prod-secret" -o goroutines.prof "http://localhost:8080/metrics/pprof/goroutine"
+go tool pprof -http=:8000 goroutines.prof
 ```
+
+Same two-snapshot method as heap: take one profile early in the load and one later, under
+the same steady load, and diff them.
+
+```bash
+curl -H "Authorization: prod-secret" -o goroutines-t0.prof "http://localhost:8080/metrics/pprof/goroutine"
+curl -H "Authorization: prod-secret" -o goroutines-t1.prof "http://localhost:8080/metrics/pprof/goroutine"
+
+go tool pprof -http=:8000 -base goroutines-t0.prof goroutines-t1.prof
+
+go tool pprof -top -base goroutines-t0.prof -focus="mymodule" goroutines-t1.prof | head -30
+```
+
+`-focus` keeps only the stacks that contain the regexp.
+
+Sample value is a goroutine count, so the flame graph widths and the `flat` column are
+goroutines. The stack that is positive in the diff is the leak; its top frames (`chansend`,
+`selectgo`, `semacquire`, `netpollblock`) say what it is parked on, and the Source view
+filtered by your module path gives the line. Bounded groups (worker pools, idle keepalive
+connections, tickers) come out near zero. Divide the growth by requests served in the same
+window to get leaked goroutines per request, which does not depend on the load level.
 
 ```bash
 curl -H "Authorization: prod-secret" "http://localhost:8080/metrics/pprof/goroutine?debug=1"
@@ -95,6 +124,10 @@ curl -H "Authorization: prod-secret" "http://localhost:8080/metrics/pprof/gorout
   stop for a leak: the group with the big count is the leak, its top frame is where they park.
 - `debug=2` - full dump, one entry per goroutine with state (`chan receive`, `select`,
   `IO wait`, `semacquire`) and how long it has been blocked (`, 5 minutes`). Big output.
+
+No `gc=1` here and none needed: the goroutine dump walks the live stacks at request time,
+so it is always current. Finished goroutines are gone from it immediately, nothing waits for
+a GC.
 
 Leak check: two dumps minutes apart, the group whose count grows is the leak. Compare counts
 with the `go_goroutines` metric over time.
